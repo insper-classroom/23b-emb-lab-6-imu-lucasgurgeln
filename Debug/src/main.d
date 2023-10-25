@@ -198,7 +198,12 @@ src/main.d src/main.o: ../src/main.c ../src/config/conf_board.h \
  ../src/ASF/common/services/twi/twihs_master.h \
  ../src/ASF/common/services/twi/sam_twihs/twihs_master.h \
  ../src/ASF/common/services/twi/twihs_slave.h \
- ../src/ASF/sam/drivers/pio/pio_handler.h ../src/mcu6050.h
+ ../src/ASF/sam/drivers/pio/pio_handler.h ../src/mcu6050.h \
+ d:\microchip\7.0\toolchain\arm\arm-gnu-toolchain\arm-none-eabi\include\math.h \
+ ../src/Fusion/Fusion.h ../src/Fusion/FusionAhrs.h \
+ ../src/Fusion/FusionConvention.h ../src/Fusion/FusionMath.h \
+ ../src/Fusion/FusionAxes.h ../src/Fusion/FusionCalibration.h \
+ ../src/Fusion/FusionCompass.h ../src/Fusion/FusionOffset.h
 
 ../src/config/conf_board.h:
 
@@ -617,3 +622,21 @@ d:\microchip\7.0\toolchain\arm\arm-gnu-toolchain\arm-none-eabi\include\alloca.h:
 ../src/ASF/sam/drivers/pio/pio_handler.h:
 
 ../src/mcu6050.h:
+
+d:\microchip\7.0\toolchain\arm\arm-gnu-toolchain\arm-none-eabi\include\math.h:
+
+../src/Fusion/Fusion.h:
+
+../src/Fusion/FusionAhrs.h:
+
+../src/Fusion/FusionConvention.h:
+
+../src/Fusion/FusionMath.h:
+
+../src/Fusion/FusionAxes.h:
+
+../src/Fusion/FusionCalibration.h:
+
+../src/Fusion/FusionCompass.h:
+
+../src/Fusion/FusionOffset.h:

@@ -5,6 +5,8 @@
 #include "conf_board.h"
 #include <asf.h>
 #include "mcu6050.h"
+#include <math.h>
+#include "Fusion/Fusion.h"
 
 /************************************************************************/
 /* DEFINES                                                              */
@@ -17,7 +19,10 @@
 #define LED_PIO_ID ID_PIOC
 #define LED_IDX 8u
 #define LED_IDX_MASK (1u << LED_IDX)
+#define THRESHOLD 2.0  // Defina um threshold baseado em testes empíricos
+#define LED_BLINK_DELAY 200 // Defina um delay para o piscar do LED
 
+SemaphoreHandle_t xSemaphore;
 /************************************************************************/
 /* PROTOTYPES                                                           */
 /************************************************************************/
@@ -142,7 +147,7 @@ static void task_led(void *pvParameters) {
   }
 }
 
-task_imu ( void * pvParameters ) {
+static void task_imu ( void * pvParameters ) {
     mcu6050_i2c_bus_init();
 
     /* buffer para recebimento de dados */
@@ -199,6 +204,11 @@ task_imu ( void * pvParameters ) {
     volatile uint8_t  raw_gyr_xHigh, raw_gyr_yHigh, raw_gyr_zHigh;
     volatile uint8_t  raw_gyr_xLow,  raw_gyr_yLow,  raw_gyr_zLow;
     float proc_gyr_x, proc_gyr_y, proc_gyr_z;
+
+    float magnitude;
+    /* Inicializa Função de fusão */
+    FusionAhrs ahrs;
+    FusionAhrsInitialise(&ahrs); 
     while(1) {
       // Le valor do acc X High e Low
       mcu6050_i2c_bus_read(MPU6050_DEFAULT_ADDRESS, MPU6050_RA_ACCEL_XOUT_H, &raw_acc_xHigh, 1);
@@ -242,11 +252,33 @@ task_imu ( void * pvParameters ) {
       proc_gyr_x = (float)raw_gyr_x/131;
       proc_gyr_y = (float)raw_gyr_y/131;
       proc_gyr_z = (float)raw_gyr_z/131;
-      printf("Aceleracao: X = %.2f, Y = %.2f, Z = %.2f\n", proc_acc_x, proc_acc_y, proc_acc_z);
-      printf("Giroscopio: X = %.2f, Y = %.2f, Z = %.2f\n", proc_gyr_x, proc_gyr_y, proc_gyr_z);
+      magnitude = sqrtf(proc_acc_x * proc_acc_x + proc_acc_y * proc_acc_y + proc_acc_z * proc_acc_z);
+      if(fabsf(magnitude - 9.81) > THRESHOLD) {
+          xSemaphoreGive(xSemaphore);  // Libera o semáforo quando uma batida é detectada
+      }
+      const FusionVector gyroscope = {proc_gyr_x, proc_gyr_y, proc_gyr_z}; 
+      const FusionVector accelerometer = {proc_acc_x, proc_acc_y, proc_acc_z};    
+      // Tempo entre amostras
+      float dT = 0.1;
 
-      // uma amostra a cada 1ms
+      // aplica o algoritmo
+      FusionAhrsUpdateNoMagnetometer(&ahrs, gyroscope, accelerometer, dT);
+
+      // dados em pitch roll e yaw
+      const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
+
+      printf("Roll %0.1f, Pitch %0.1f, Yaw %0.1f\n", euler.angle.roll, euler.angle.pitch, euler.angle.yaw);
       vTaskDelay(1);
+    }
+}
+
+static void task_house_down(void *pvParameters) {
+    while(1) {
+        if(xSemaphoreTake(xSemaphore, portMAX_DELAY)) {
+            pin_toggle(LED_PIO, LED_IDX_MASK);  // Aciona o LED
+            vTaskDelay(LED_BLINK_DELAY / portTICK_PERIOD_MS);  // Delay entre desligar e ligar
+            pin_toggle(LED_PIO, LED_IDX_MASK);  // Desliga o LED
+        }
     }
 }
 
@@ -267,7 +299,15 @@ int main(void) {
   printf("-- Freertos Example --\n\r");
   printf("-- %s\n\r", BOARD_NAME);
   printf("-- Compiled: %s %s --\n\r", __DATE__, __TIME__);
+  xSemaphore = xSemaphoreCreateBinary();  // Cria o semáforo
+  if (xSemaphore == NULL) {
+      printf("Falha na criacao do semaforo\n");
+  }
 
+  if (xTaskCreate(task_house_down, "House Down", TASK_LED_STACK_SIZE, NULL,
+                  TASK_LED_STACK_PRIORITY, NULL) != pdPASS) {
+      printf("Failed to create test house down task\r\n");
+  }
   /* Create task to make led blink */
   if (xTaskCreate(task_led, "Led", TASK_LED_STACK_SIZE, NULL,
                   TASK_LED_STACK_PRIORITY, NULL) != pdPASS) {
